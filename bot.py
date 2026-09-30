@@ -690,3 +690,247 @@ def cmd_invite(m):
 @bot.message_handler(commands=["evil"])
 def cmd_evil(m):
     data = load_data()
+
+@bot.message_handler(commands=["evil"])
+def cmd_evil(m):
+    data = load_data()
+    user = get_user(data, m.from_user.id)
+    if not user.get("evil_unlocked", False):
+        invited = len(user.get("invited", []))
+        save_data(data)
+        bot.send_message(m.chat.id, f"Злой режим пока закрыт 🔒\n\nПриглашено: {invited}/3\n/invite")
+        return
+    user["mode"] = "evil"
+    user["history"] = []
+    save_data(data)
+    bot.send_message(m.chat.id, "Ок, теперь я злой 😈")
+
+
+@bot.message_handler(commands=["good"])
+def cmd_good(m):
+    data = load_data()
+    user = get_user(data, m.from_user.id)
+    user["mode"] = "good"
+    user["history"] = []
+    save_data(data)
+    bot.send_message(m.chat.id, "Ладно, снова добрый 🙂")
+
+
+@bot.message_handler(commands=["reset"])
+def cmd_reset(m):
+    data = load_data()
+    user = get_user(data, m.from_user.id)
+    user["history"] = []
+    save_data(data)
+    bot.send_message(m.chat.id, "Память очищена 🧹")
+
+
+@bot.message_handler(func=lambda m: True, content_types=["text"])
+def on_text(m):
+    if m.text.startswith("/"):
+        return
+
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        mentioned = False
+        if m.entities:
+            for entity in m.entities:
+                if entity.type == "mention":
+                    mention_text = m.text[entity.offset:entity.offset + entity.length]
+                    if mention_text.lower() == "@" + bot.get_me().username.lower():
+                        mentioned = True
+                        break
+        if not reply_to_bot and not mentioned:
+            return
+
+    log_to_admin(m, is_group=is_group)
+
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+
+    data = load_data()
+    user = get_user(data, m.from_user.id)
+    mode = user.get("mode", "good")
+    name = user.get("name", "") or m.from_user.first_name or "друг"
+    last_action = user.get("last_action", "")
+
+    user["msg_count"] = user.get("msg_count", 0) + 1
+    if user["msg_count"] % 12 == 0:
+        user["mood"] = random.choice(MOODS)
+    if user["mood"] not in MOODS:
+        user["mood"] = mood_from_time()
+
+    mood = user["mood"]
+    reply = build_reply(m.text, mode, user.get("history", []), name, mood, last_action)
+
+    if "анекдот" in reply.lower() and "?" in reply:
+        user["last_action"] = "joke_offer"
+    else:
+        user["last_action"] = ""
+
+    if mode != "evil" and len(reply) > 3 and random.random() < 0.6:
+        reply = wrap_with_mood(reply, mood)
+
+    user["history"].append({"role": "user", "content": m.text})
+    user["history"].append({"role": "assistant", "content": reply})
+    user["history"] = user["history"][-6:]
+    save_data(data)
+
+    bot.send_chat_action(m.chat.id, "typing")
+    time.sleep(random.uniform(1, 2.5))
+    bot.send_message(m.chat.id, reply)
+
+
+@bot.message_handler(content_types=["sticker"])
+def on_sticker(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, random.choice(
+        ["О, стикер! 🙂", "Классный 😄", "Хм, интересный", "Прикольно!", "👍", "Ахах 😄"]))
+
+
+@bot.message_handler(content_types=["photo"])
+def on_photo(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, random.choice(
+        ["О, фото! 📸", "Красиво!", "Что это?", "Классный кадр 🙂", "Прикольное фото!"]))
+
+
+@bot.message_handler(content_types=["video"])
+def on_video(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, random.choice(["О, видео! 🎬", "Что там?", "Интересно 🙂"]))
+
+
+@bot.message_handler(content_types=["voice"])
+def on_voice(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, random.choice(["О, голосовое 🎤", "Что говоришь?", "Слушаю 🙂"]))
+
+
+@bot.message_handler(content_types=["document"])
+def on_document(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, "О, документ 📄 Спасибо!")
+
+
+@bot.message_handler(content_types=["audio"])
+def on_audio(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, "О, музыка 🎵 Что слушаешь?")
+
+
+@bot.message_handler(content_types=["animation"])
+def on_gif(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        reply_to_bot = (
+            m.reply_to_message and
+            m.reply_to_message.from_user and
+            m.reply_to_message.from_user.id == bot.get_me().id
+        )
+        if not reply_to_bot:
+            return
+    log_to_admin(m, is_group=is_group, is_media=True)
+    if not BOT_AUTOREPLY and m.from_user.id != ADMIN_ID:
+        return
+    bot.send_message(m.chat.id, "О, гифка! 😄")
+
+
+@bot.message_handler(func=lambda m: True)
+def other(m):
+    is_group = m.chat.type in ["group", "supergroup"]
+    if is_group:
+        return
+    bot.send_message(m.chat.id, "Не вижу текста 🤔")
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+    def log_message(self, format, *args):
+        pass
+
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    server.serve_forever()
+
+
+print("Запущено...")
+threading.Thread(target=run_web_server, daemon=True).start()
+bot.infinity_polling()
