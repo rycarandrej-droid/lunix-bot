@@ -501,8 +501,6 @@ def cmd_start(m):
         except:
             pass
 
-    name = m.from_user.first_name or "друг"
-    greeting = get_time_greeting()
     greetings = {
         "morning": f"Доброе утро, {name}! ☀️",
         "day": f"Привет, {name}! 👋",
