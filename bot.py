@@ -785,4 +785,16 @@ def run_web_server():
 
 print("Запущено...")
 threading.Thread(target=run_web_server, daemon=True).start()
-bot.infinity_polling()
+bot.infinity_polling()@bot.chat_join_request_handler()
+def handle_join_request(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    
+    try:
+        # Отправляем сообщение в личку сразу после заявки
+        bot.send_message(user_id, "Привет! Твоя заявка на вступление получена. Сейчас я её одобрю.")
+        # Автоматически одобряем заявку, чтобы пользователь попал в группу
+        bot.approve_chat_join_request(chat_id, user_id)
+        print(f"Заявка одобрена для {user_id}")
+    except Exception as e:
+        print(f"Ошибка при обработке заявки: {e}")
